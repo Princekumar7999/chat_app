@@ -67,3 +67,14 @@ node_modules/
 
 # dataconnect generated files
 .dataconnect
+
+firebase confog = {
+ apiKey: "AIzaSyCou1rjja3xgDRTzZHEotqOgg2nD2ca0qc",
+    authDomain: "chat-app-e3a0c.firebaseapp.com",
+    databaseURL: "https://chat-app-e3a0c-default-rtdb.firebaseio.com",
+    projectId: "chat-app-e3a0c",
+    storageBucket: "chat-app-e3a0c.appspot.com",
+    messagingSenderId: "1092680723271",
+    appId: "1:1092680723271:web:bfbdce308ed4df0c3cba62",
+    measurementId: "G-0GC95FDJ61"
+    }

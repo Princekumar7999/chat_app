@@ -82,34 +82,80 @@ signupBtn.addEventListener('click', () => {
     const activeUsersRef = db.ref('active_users');
     const currentUser = auth.currentUser;
   
+    if (!currentUser) {
+      console.error('No current user found');
+      return;
+    }
+  
+    console.log('Loading active users for', currentUser.email);
+  
+    // Set current user as active with a timestamp
+    activeUsersRef.child(currentUser.uid).set({
+      isOnline: true,
+      email: currentUser.email,
+      lastSeen: firebase.database.ServerValue.TIMESTAMP
+    }).then(() => {
+      console.log('Current user set as active');
+    }).catch(error => {
+      console.error('Error setting user as active:', error);
+    });
+  
+    // Remove user when disconnected
+    activeUsersRef.child(currentUser.uid).onDisconnect().remove();
+  
+    // Listen for changes in active users
     activeUsersRef.on('value', (snapshot) => {
       const activeUsersContainer = document.getElementById('active-users');
+      if (!activeUsersContainer) {
+        console.error('Active users container not found');
+        return;
+      }
+  
       activeUsersContainer.innerHTML = '';
+      console.log('Active users snapshot:', snapshot.val());
+  
+      let otherActiveUsersCount = 0;
+      const now = Date.now();
+      const staleThreshold = 5 * 60 * 1000; // 5 minutes
   
       snapshot.forEach((childSnapshot) => {
         const userId = childSnapshot.key;
         const userData = childSnapshot.val();
   
+        console.log('User data:', userId, userData);
+  
+        // Check if the user data is stale
+        if (now - userData.lastSeen > staleThreshold) {
+          console.log('Removing stale user data for:', userData.email);
+          childSnapshot.ref.remove();
+          return;
+        }
+  
+        // Only display other active users (not the current user)
         if (userData.isOnline && userId !== currentUser.uid) {
           const userElement = document.createElement('div');
-          userElement.textContent = userData.email; // Display email instead of UID
+          userElement.textContent = userData.email || 'Unknown User';
           userElement.classList.add('user');
           userElement.addEventListener('click', () => startChat(userId, userData.email));
           activeUsersContainer.appendChild(userElement);
+          console.log('Added user to list:', userData.email);
+          otherActiveUsersCount++;
         }
       });
-    });
   
-    // Set user as active with email
-    activeUsersRef.child(currentUser.uid).onDisconnect().remove();
-    activeUsersRef.child(currentUser.uid).set({
-      isOnline: true,
-      email: currentUser.email
+      console.log('Total other active users:', otherActiveUsersCount);
+  
+      if (otherActiveUsersCount === 0) {
+        const noUsersElement = document.createElement('div');
+        noUsersElement.textContent = 'No other active users';
+        activeUsersContainer.appendChild(noUsersElement);
+        console.log('No other active users found');
+      }
+    }, (error) => {
+      console.error('Error fetching active users:', error);
     });
   }
 
-  
-  
   let currentChatPartner = null;
 let currentChatPartnerEmail = null;
 
@@ -327,3 +373,43 @@ function startChat(userId, userEmail) {
         }
       });
   }
+
+  function removeUserFromActiveList() {
+    const currentUser = auth.currentUser;
+    if (currentUser) {
+      const activeUsersRef = db.ref('active_users');
+      activeUsersRef.child(currentUser.uid).remove()
+        .then(() => console.log('User removed from active list'))
+        .catch(error => console.error('Error removing user from active list:', error));
+    }
+  }
+
+  // Add this somewhere in your code, e.g., tied to a sign-out button
+function signOut() {
+    removeUserFromActiveList();
+    auth.signOut().then(() => {
+      console.log('User signed out');
+      // Additional sign-out logic (e.g., showing login screen)
+    }).catch((error) => {
+      console.error('Error signing out:', error);
+    });
+  }
+
+  function cleanupStaleUsers() {
+    const activeUsersRef = db.ref('active_users');
+    const now = Date.now();
+    const staleThreshold = 5 * 60 * 1000; // 5 minutes
+  
+    activeUsersRef.once('value', (snapshot) => {
+      snapshot.forEach((childSnapshot) => {
+        const userData = childSnapshot.val();
+        if (now - userData.lastSeen > staleThreshold) {
+          console.log('Removing stale user data for:', userData.email);
+          childSnapshot.ref.remove();
+        }
+      });
+    });
+  }
+  
+  // Call this function periodically, e.g., every 5 minutes
+  setInterval(cleanupStaleUsers, 5 * 60 * 1000);
